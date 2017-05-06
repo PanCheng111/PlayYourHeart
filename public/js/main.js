@@ -533,7 +533,7 @@
 
 		// HOD end here
 		THREE.ImageUtils.crossOrigin = '';	
-		var ballTexture = THREE.ImageUtils.loadTexture( 'https://stemkoski.github.io/Three.js/images/redball.png' );
+		var ballTexture = THREE.ImageUtils.loadTexture( 'http://localhost:3000/images/center.png' );
 	
 		// suggested- alignment: THREE.SpriteAlignment.center  for targeting-style icon
 		//			  alignment: THREE.SpriteAlignment.topLeft for cursor-pointer style icon
