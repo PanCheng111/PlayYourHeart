@@ -5,10 +5,19 @@ var logger = require('morgan');
 var cookieParser = require('cookie-parser');
 var bodyParser = require('body-parser');
 
-var index = require('./routes/index');
+var app = express();
+var io = require('socket.io')();
+
+//允许跨域访问
+var cors = require('cors')
+app.use(cors());
+
+var index = require('./routes/index')(io);
 var users = require('./routes/users');
 
-var app = express();
+//事件监听
+app.io = io;
+
 
 // view engine setup
 app.set('views', path.join(__dirname, 'views'));

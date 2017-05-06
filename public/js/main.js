@@ -38,21 +38,18 @@
 		curOrderIndex = 0,
 		curRow = 0;
 		
-		var lRect = new Array(),
-		lRound = new Array(),
-		lTri = new Array(),
-		rRect = new Array(),
-		rRound = new Array(),
-		rTri = new Array();
+		var shapeSize = 3.5;
+		var sride = 0.35;
+		
+		var rCircle = new Array(),
+		lCircle = new Array(),
+		rCircleTween = new Array(),
+		lCircleTween = new Array(),
+		rcirclePos = [],
+		lcirclePos = [],
+		audioLock = [];
 
-		var lRectTween = new Array(),
-		lRoundTween = new Array(),
-		lTriTween = new Array(),
-		rRectTween = new Array(),
-		rRoundTween = new Array(),
-		rTriTween = new Array();
-
-		var ballSprite;
+		var ballSprite = [];
 
 		var volumeNode = [];
         // Setup Leap loop with frame callback function
@@ -67,14 +64,36 @@
         var appWidth = window.innerWidth;
         var appHeight = window.innerHeight;
         var prevHandPos = [];
+		var preTouching = [];
         var down = [];
+		var socket;
 
 	preSetup();
 
 	function preSetup() {
+
 		var container = document.getElementById('container'),
 			intro = document.getElementById('intro'),
 			start = document.getElementById('start');
+
+
+		let hostname = location.hostname;
+		let port = location.port;
+		let url = hostname + ":" + port;
+		socket = io(url);
+		socket.emit("hello", {message: "hello"});
+		socket.on("start", function() {
+			console.log("receive start");
+			container.style.visibility = 'hidden';
+			intro.className = 'loading';
+			start.innerHTML = 'OK, hold on a second...';
+			setTimeout(setup, 100);			
+		});
+		
+		socket.on("play-music", function(data) {
+			playBoom(0, 0, data);
+		});
+
 
 		// Audio API & WebGL?
 		if( AudioDetector.detects( [ 'webAudioSupport' ] ) ) {
@@ -91,7 +110,8 @@
 		container.style.visibility = 'hidden';
 		
 		start.addEventListener('click', function startClick(e) {
-			console.log('eh');
+			//console.log('eh');
+			socket.emit("start");
 			start.removeEventListener('click', startClick);
 			intro.className = 'loading';
 			start.innerHTML = 'OK, hold on a second...';
@@ -494,8 +514,8 @@
 
 				// HUD start from here
 		var hudCanvas = document.createElement('canvas');
-		var width = window.innerWidth/2;
-  		var height = window.innerHeight/2;	
+		var width = window.innerWidth;
+  		var height = window.innerHeight;	
   		// Again, set dimensions to fit the screen.
   		hudCanvas.width = width;
   		hudCanvas.height = height;
@@ -531,25 +551,43 @@
 
 		drawAllButton();
 
-		// HOD end here
-		THREE.ImageUtils.crossOrigin = '';	
-		var ballTexture = THREE.ImageUtils.loadTexture( 'http://localhost:3000/images/center.png' );
-	
-		// suggested- alignment: THREE.SpriteAlignment.center  for targeting-style icon
-		//			  alignment: THREE.SpriteAlignment.topLeft for cursor-pointer style icon
-		var ballMaterial = new THREE.SpriteMaterial( { map: ballTexture, useScreenCoordinates: true } );
-		ballSprite = new THREE.Sprite( ballMaterial );
-		ballSprite.scale.set( 32, 32, 1.0 );
-		ballSprite.position.set( 50, 50, 0 );
-		sceneHUD.add( ballSprite );	
-
 	}
 
-	function drawRectButton(baseX, baseY, left) {
-		//var material = new THREE.SpriteMaterial();
-		var material = new THREE.SpriteMaterial({color:  0xffffff});
-		for ( var x = -2.5; x < 2.5; x+=0.3 ) {
-			for ( var y = -2.5; y < 2.5; y+=0.3 ) {
+	function createHummer(appX, appY, index) {
+		// HOD end here
+		//if (ballSprite[index]) sceneHUD.remove(ballSprite[index]);
+		THREE.ImageUtils.crossOrigin = '';	
+		var ballTexture;
+		let hostname = location.hostname;
+		let port = location.port;
+		let url = "http://" + hostname + ":" + port;
+		if (index == 0) ballTexture = THREE.ImageUtils.loadTexture( url + '/images/hammer-left.png' );
+		else ballTexture = THREE.ImageUtils.loadTexture( url + '/images/hammer-right.png' );
+		var ballMaterial = new THREE.SpriteMaterial( { map: ballTexture, useScreenCoordinates: true } );
+		ballSprite[index] = new THREE.Sprite( ballMaterial );
+		ballSprite[index].scale.set( 32, 32, 1.0 );
+		ballSprite[index].position.set( appX, appY, 0 );
+		sceneHUD.add( ballSprite[index] );
+	}
+
+
+	function calcR(x, y) {
+		var tmp = x*x + y*y;
+		return Math.sqrt(tmp);
+	}
+
+	function drawCircleButton(baseX, baseY, left) {
+		var material = new THREE.SpriteMaterial({color: 0x00ff00});
+		let rRound = new Array(),
+		lRound = new Array(),
+		rRoundTween = new Array(),
+		lRoundTween = new Array();
+		for ( var x = -shapeSize; x < shapeSize; x+=sride-0.1 ) {
+			for ( var y = -shapeSize; y < shapeSize; y+=sride-0.1 ) {
+				var distance = calcR(x, y);
+				if (distance > shapeSize || distance < shapeSize*2 / 3 ) {
+					continue;
+				} 
 				// 创建粒子
 				var sprite = new THREE.Sprite( material );
 				// 设置其位置
@@ -577,78 +615,27 @@
 					tweenEnd.onUpdate(function() {
 						this.position.set( this.x, this.y, this.z );
 					});
-					//this.position.set( this.sx, this.sy, this.sz );
-					//this.x = this.sx;
-					//this.y = this.sy;
-					//this.z = this.sz;
 				});
 				// 添加到记录
 				if (left) {
-					lRect.push( sprite );
-					lRectTween.push( tween );
-				} else {
-					rRect.push( sprite );
-					rRectTween.push( tween );
-				}
-				// 添加到场景
-				sceneHUD.add( sprite );
-			}
-		}
-	}
-
-	function calcR(x, y) {
-		var tmp = x*x + y*y;
-		return Math.sqrt(tmp);
-	}
-
-	function drawRoundButton(baseX, baseY, left) {
-		var material = new THREE.SpriteMaterial();
-		for ( var x = -2.5; x < 2.5; x+=0.2 ) {
-			for ( var y = -2.5; y < 2.5; y+=0.2 ) {
-				var distance = calcR(x, y);
-				if (distance > 2.5) {
-					continue;
-				} 
-				// 创建粒子
-				var sprite = new THREE.Sprite( material );
-				// 设置其位置
-				sprite.position.set( x * 10 + baseX, y * 10 + baseY, 0 );
-				// 添加到记录
-				if (left) {
 					lRound.push( sprite );
+					lRoundTween.push( tween );
 				} else {
 					rRound.push( sprite );
+					rRoundTween.push( tween );
 				}
 				// 添加到场景
 				sceneHUD.add( sprite );
 			}
 		}
-	}
-
-	function drawTriButton(baseX, baseY, left) {
-		var material = new THREE.SpriteMaterial();
-		for ( var x = -2.5; x < 2.5; x+=0.2 ) {
-			for ( var y = -2.5; y < 2.5; y+=0.2 ) {
-				var d1 = 2*x - y + 2.5;
-				var d2 = 2*x + y - 2.5;
-				if (d1 >= 0 && d2 < 0) {
-					// 创建粒子
-					var sprite = new THREE.Sprite( material );
-					// 设置其位置
-					sprite.position.set( x * 10 + baseX, y * 10 + baseY, 0 );
-					// 添加到记录
-					if (left) {
-						lTri.push( sprite );
-					} else {
-						rTri.push( sprite );
-					}
-					// 添加到场景
-					sceneHUD.add( sprite );
-				}
-			}
+		if (left) {
+			lCircle.push( lRound );
+			lCircleTween.push( lRoundTween );
+		} else {
+			rCircle.push( rRound );
+			rCircleTween.push( rRoundTween );
 		}
 	}
-
 
 	function drawAllButton() {
 		/*
@@ -661,24 +648,48 @@
 		* -w/5, -h/5
 		* 对应每个button区域：button坐标 +/-30范围内
 		*/
-		//left
-		var baseX = window.innerWidth/5 , baseY = window.innerHeight/5;
-		drawRectButton(baseX, baseY, false);
+		//right
+		var baseX = window.innerWidth*5/12 , baseY = window.innerHeight*6/15;
+		drawCircleButton(baseX, baseY, false);
+		rcirclePos[0] = {x: baseX, y: baseY};
+		baseY = window.innerHeight*3/15;
+		drawCircleButton(baseX, baseY, false);
+		rcirclePos[1] = {x: baseX, y: baseY};
 		baseY = 0;
-		drawRoundButton(baseX, baseY, false);
-		baseY = -window.innerHeight/5;
-		drawTriButton(baseX, baseY, false);
-		//right	
-		baseX = -window.innerWidth/5;
-		drawRectButton(baseX, baseY, true);
+		drawCircleButton(baseX, baseY, false);
+		rcirclePos[2] = {x: baseX, y: baseY};
+		baseY = -window.innerHeight*3/15
+		drawCircleButton(baseX, baseY, false);
+		rcirclePos[3] = {x: baseX, y: baseY};
+		baseY = -window.innerHeight*6/15
+		drawCircleButton(baseX, baseY, false);
+		rcirclePos[4] = {x: baseX, y: baseY};
+		//left	
+		baseX = -window.innerWidth*5/12;
+		baseY = window.innerHeight*6/15;
+		drawCircleButton(baseX, baseY, true);
+		lcirclePos[0] = {x: baseX, y: baseY};
+		baseY = window.innerHeight*3/15;
+		drawCircleButton(baseX, baseY, true);
+		lcirclePos[1] = {x: baseX, y: baseY};
 		baseY = 0;
-		drawRoundButton(baseX, baseY, true);
-		baseY = window.innerHeight/5;
-		drawTriButton(baseX, baseY, true);
+		drawCircleButton(baseX, baseY, true);
+		lcirclePos[2] = {x: baseX, y: baseY};
+		baseY = -window.innerHeight*3/15;
+		drawCircleButton(baseX, baseY, true);
+		lcirclePos[3] = {x: baseX, y: baseY};
+		baseY = -window.innerHeight*6/15;
+		drawCircleButton(baseX, baseY, true);
+		lcirclePos[4] = {x: baseX, y: baseY};
 	}
 
+
 	function activeTween (tweenArr) {
+		if (tweenArr.lock) return;
+		tweenArr.lock = true;
 		for ( let i = 0; i < tweenArr.length; i++) {
+			//if (tweenArr[i].lock) continue;
+			//tweenArr[i].lock = true;
 			tweenArr[i].start();
 		}
 	}
@@ -687,17 +698,22 @@
 		for ( let i = 0; i < tweenArr.length; i++) {
 			tweenArr[i].stop();
 		}
+		tweenArr.lock = false;
 	}
 
 	function loadMusic() {
+		let hostname = location.hostname;
+		let port = location.port;
+		let url = "http://" + hostname + ":" + port;
+
 		let bufferLoader = new BufferLoader(
 			audioContext,
 			[
-			'http://localhost:3000/sounds/demo.mp3',
-			'http://localhost:3000/sounds/demo2.mp3',
+			url + '/sounds/demo.mp3',
+			url + '/sounds/demo2.mp3',
 			],
 			function(bufferList) {
-				console.log("success get music");
+				//console.log("success get music");
 				for (let i = 0; i < bufferList.length; i++) {
 					var source = audioContext.createBufferSource();
 					source.buffer = bufferList[i];
@@ -821,20 +837,79 @@
 //		}, false);
 	}
 
-	function playBoom() {
-		let index = Math.floor(Math.random() * 5);
-		var source = audioContext.createBufferSource();
-		source.buffer = boomList[index];
-		let preCompressorGainNode = audioContext.createGain();
-		preCompressorGainNode.gain.value = 10;
-		source.connect(preCompressorGainNode);
-		preCompressorGainNode.connect(compressorNode);
-		source.start();
+	function playBoom(appX, appY, audioIndex = null) {
+		if (audioIndex != null) {
+			if (audioLock[audioIndex]) return;
+			audioLock[audioIndex] = true;
+			setTimeout(function() {
+				audioLock[audioIndex] = false;
+			}, 2000);
+			var source = audioContext.createBufferSource();
+			source.buffer = boomList[audioIndex];
+			let preCompressorGainNode = audioContext.createGain();
+			preCompressorGainNode.gain.value = 2;
+			source.connect(preCompressorGainNode);
+			preCompressorGainNode.connect(compressorNode);
+			source.start();
+			return;
+		}
+		for (let i = 0; i < 5; i++) {
+			let dotx = lcirclePos[i].x;
+			let doty = lcirclePos[i].y;
+			if (appX > dotx - 40 && appX < dotx + 40 && appY > doty - 40 && appY < doty + 40) {
+				activeTween(lCircleTween[i]);
+				setTimeout(function() {
+					inactiveTween(lCircleTween[i]);
+				}, 2000);
+				let index = i;
+				socket.emit("play-music", index);
+				if (audioLock[index]) return;
+				audioLock[index] = true;
+				setTimeout(function() {
+					audioLock[index] = false;
+				}, 2000);
+				var source = audioContext.createBufferSource();
+				source.buffer = boomList[index];
+				let preCompressorGainNode = audioContext.createGain();
+				preCompressorGainNode.gain.value = 2;
+				source.connect(preCompressorGainNode);
+				preCompressorGainNode.connect(compressorNode);
+				source.start();
+				return;
+			}
+		}
+
+		for (let i = 0; i < 5; i++) {
+			let dotx = rcirclePos[i].x;
+			let doty = rcirclePos[i].y;
+			if (appX > dotx - 40 && appX < dotx + 40 && appY > doty - 40 && appY < doty + 40) {
+				activeTween(rCircleTween[i]);
+				setTimeout(function() {
+					inactiveTween(rCircleTween[i]);
+				}, 2000);
+				let index = i + 5;
+				socket.emit("play-music", index);
+				if (audioLock[index]) return;
+				audioLock[index] = true;
+				setTimeout(function() {
+					audioLock[index] = false;
+				}, 2000);
+				var source = audioContext.createBufferSource();
+				source.buffer = boomList[index];
+				let preCompressorGainNode = audioContext.createGain();
+				preCompressorGainNode.gain.value = 2;
+				source.connect(preCompressorGainNode);
+				preCompressorGainNode.connect(compressorNode);
+				source.start();
+				return;
+			}
+		}		
+
 	}
 
 	function volumeAdjust(index, delta) {
 		delta *= 2;
-		console.log("volume adjust " + index + " " + delta);
+		//console.log("volume adjust " + index + " " + delta);
 		if (volumeNode[index]) {
 			volumeNode[index].gain.value += delta;
 			if (volumeNode[index].gain.value < 0) volumeNode[index].gain.value = 0;
@@ -843,18 +918,28 @@
 	}
 
 	function setLeapMotion() {
+		let hostname = location.hostname;
+		let port = location.port;
+		let url = "http://" + hostname + ":" + port;
+
 		let bufferLoader = new BufferLoader(
 			audioContext,
 			[
-			'http://localhost:3000/sounds/0.wav',
-			'http://localhost:3000/sounds/1.wav',
-			'http://localhost:3000/sounds/2.wav',
-			'http://localhost:3000/sounds/3.wav',
-			'http://localhost:3000/sounds/4.wav',
+			url + '/sounds/1.wav',
+			url + '/sounds/2.wav',
+			url + '/sounds/3.wav',
+			url + '/sounds/4.wav',
+			url + '/sounds/5.wav',
+			url + '/sounds/6.wav',
+			url + '/sounds/7.wav',
+			url + '/sounds/8.wav',
+			url + '/sounds/9.wav',
+			url + '/sounds/10.mov',
 			],
 			function(bufferList) {
 				for (let i = 0; i < bufferList.length; i++) {
 					boomList[i] = bufferList[i];
+					audioLock[i] = false;
 					// var source = audioContext.createBufferSource();
 					// source.buffer = bufferList[i];
 					// let preCompressorGainNode = audioContext.createGain();
@@ -873,6 +958,7 @@
             var iBox = frame.interactionBox;
 
             var handPos = [];
+			var touching = [];
             if (frame.hands.length > 0) {
                 for (var i = 0; i < frame.hands.length; i++) {
                     var hand = frame.hands[i];
@@ -883,12 +969,27 @@
                     var appX = normalizedPoint[0] * appWidth - appWidth / 2;
                     var appY = normalizedPoint[1] * appHeight - appHeight / 2;
                     handPos[hand.id] = {x: appX, y: appY};
-                    console.log("hand " + hand.id);
-                    if (!down[hand.id]) down[hand.id] = 0;
+					//console.log("appX="+appX + ",appY="+appY);
+					if (hand.type == "right" && appX > appWidth / 4) {
+						if (ballSprite[1] != null) ballSprite[1].position.set(appX, appY, 0);
+						else createHummer(appX, appY, 1);
+					}
+					if (hand.type == "left" && appX < -appWidth / 4) {
+						if (ballSprite[0] != null) ballSprite[0].position.set(appX, appY, 0);
+						else createHummer(appX, appY, 0);
+					}
 
+                    //console.log("hand " + hand.id);
+                    //if (!down[hand.id]) down[hand.id] = 0;
+					
+					touching[hand.id] = 1;
+					if (hand.fingers) {
+						for (let j = 0; j < hand.fingers.length; j++)
+							if (hand.fingers[j].touchDistance < touching[hand.id]) touching[hand.id] = hand.fingers[j].touchDistance;
+					}
                     if (prevHandPos[hand.id] && prevHandPos[hand.id].y > handPos[hand.id].y) {
-						down[hand.id] ++;
-						if (appX > - appWidth / 2 && appX < appWidth / 2 && hand.fingers) {
+						//down[hand.id] ++;
+						if (appX > - appWidth / 4 && appX < appWidth / 4 && hand.fingers) {
 							let extFingers = 0;
 							for (let j = 0; j < hand.fingers.length; j++)
 								if (hand.fingers[j].extended) extFingers ++;
@@ -896,22 +997,28 @@
 						}
 					}
                     else if (prevHandPos[hand.id] && prevHandPos[hand.id].y + 1 < handPos[hand.id].y) {
-						if (appX > - appWidth / 2 && appX < appWidth / 2 && hand.fingers) {
+						if (appX > - appWidth / 4 && appX < appWidth / 4 && hand.fingers) {
 							let extFingers = 0;
 							for (let j = 0; j < hand.fingers.length; j++)
 								if (hand.fingers[j].extended) extFingers ++;
 							volumeAdjust(extFingers, -(prevHandPos[hand.id].y - handPos[hand.id].y) / appHeight);
 						}
-						else {
-							if (down[hand.id] > 1) {
-								console.log("Boom!");
-								playBoom();
-								console.log("hand_" + hand.id + " " + JSON.stringify(handPos[hand.id]));
-							}
-							down[hand.id] = 0;
-						}
+						// else {
+						// 	if (down[hand.id] > 1) {
+						// 		console.log("Boom!");
+						// 		playBoom(appX, appY);
+						// 		console.log("hand_" + hand.id + " " + JSON.stringify(handPos[hand.id]));
+						// 	}
+						// 	down[hand.id] = 0;
+						// }
                     }
-					else down[hand.id] ++;
+					//else down[hand.id] ++;
+					//console.log("preTouching="+preTouching[hand.id]+"touching="+touching[hand.id]);
+					if (preTouching[hand.id] != null && preTouching[hand.id] > touching[hand.id]) {
+						console.log("Boom!");
+						playBoom(appX, appY, null);
+					}
+					preTouching = touching;
                     prevHandPos = handPos;
                 }
             }
