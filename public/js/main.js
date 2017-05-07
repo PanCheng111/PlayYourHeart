@@ -72,9 +72,9 @@
 
 	function preSetup() {
 
-		var container = document.getElementById('container'),
-			intro = document.getElementById('intro'),
-			start = document.getElementById('start');
+		// var container = document.getElementById('container'),
+		var intro = document.getElementById('intro'),
+		start = document.getElementById('start');
 
 
 		let hostname = location.hostname;
@@ -82,18 +82,24 @@
 		let url = hostname + ":" + port;
 		socket = io(url);
 		socket.emit("hello", {message: "hello"});
-		socket.on("start", function() {
-			console.log("receive start");
-			container.style.visibility = 'hidden';
-			intro.className = 'loading';
-			start.innerHTML = 'OK, hold on a second...';
-			setTimeout(setup, 100);			
-		});
+		intro.className = 'loading';
+		start.innerHTML = 'OK, hold on a second...';
+
+		// socket.on("start", function() {
+		// 	console.log("receive start");
+		// //	container.style.visibility = 'hidden';
+		// //	intro.className = 'loading';
+		// //	start.innerHTML = 'OK, hold on a second...';
+		// 	setTimeout(setup, 100);			
+		// });
 		
 		socket.on("play-music", function(data) {
 			playBoom(0, 0, data);
 		});
 
+		socket.on("vol-change", function(data) {
+			volumeAdjust(data.index, data.delta, 1);
+		});	
 
 		// Audio API & WebGL?
 		if( AudioDetector.detects( [ 'webAudioSupport' ] ) ) {
@@ -107,16 +113,16 @@
 			}
 		}
 
-		container.style.visibility = 'hidden';
+		//container.style.visibility = 'hidden';
 		
-		start.addEventListener('click', function startClick(e) {
+		//start.addEventListener('click', function startClick(e) {
 			//console.log('eh');
-			socket.emit("start");
-			start.removeEventListener('click', startClick);
-			intro.className = 'loading';
-			start.innerHTML = 'OK, hold on a second...';
+		//	socket.emit("start");
+		//	start.removeEventListener('click', startClick);
+		//	intro.className = 'loading';
+		//	start.innerHTML = 'OK, hold on a second...';
 			setTimeout(setup, 100);
-		});
+		//});
 
 	}
 
@@ -263,7 +269,7 @@
 
 
         // For debugging/hacking
-		var debug = document.getElementById('debug');
+		//var debug = document.getElementById('debug');
 
 		// var gui1 = new SOROLLET.VoiceGUI();
 		// gui1.attachTo( voice1 );
@@ -711,9 +717,13 @@
 			[
 			url + '/sounds/demo.mp3',
 			url + '/sounds/demo2.mp3',
+			url + '/sounds/demo3.mp3',
+			// url + '/sounds/demo4.mp3',
+			// url + '/sounds/demo5.mp3',
 			],
 			function(bufferList) {
 				//console.log("success get music");
+				let firstRun = 0;//Math.floor(Math.random() * 5);
 				for (let i = 0; i < bufferList.length; i++) {
 					var source = audioContext.createBufferSource();
 					source.buffer = bufferList[i];
@@ -724,7 +734,7 @@
 					source.loop = true;
 					source.start();
 					volumeNode[i + 1] = preCompressorGainNode;
-					if (i != 0) preCompressorGainNode.gain.value = 0;
+					if (i != firstRun) preCompressorGainNode.gain.value = 0;
 				}
 			}
 		);
@@ -871,7 +881,7 @@
 				var source = audioContext.createBufferSource();
 				source.buffer = boomList[index];
 				let preCompressorGainNode = audioContext.createGain();
-				preCompressorGainNode.gain.value = 2;
+				preCompressorGainNode.gain.value = 5;
 				source.connect(preCompressorGainNode);
 				preCompressorGainNode.connect(compressorNode);
 				source.start();
@@ -907,10 +917,11 @@
 
 	}
 
-	function volumeAdjust(index, delta) {
+	function volumeAdjust(index, delta, fromOther = null) {
 		delta *= 2;
 		//console.log("volume adjust " + index + " " + delta);
 		if (volumeNode[index]) {
+			if (!fromOther) socket.emit('vol-change', {index: index, delta: delta});
 			volumeNode[index].gain.value += delta;
 			if (volumeNode[index].gain.value < 0) volumeNode[index].gain.value = 0;
 		}
@@ -1092,17 +1103,17 @@
 		} else if(code === 68) {
 		
 			// toggle showing synths debug panel
-			var debug = document.getElementById('debug'),
-				ds = debug.style;
+			// var debug = document.getElementById('debug'),
+			// 	ds = debug.style;
 
-			if(ds.display === 'block') {
-				ds.display = 'none';
-			} else {
-				ds.display = 'block';
-			}
+			// if(ds.display === 'block') {
+			// 	ds.display = 'none';
+			// } else {
+			// 	ds.display = 'block';
+			// }
 
-			var info = document.getElementById('info');
-			info.style.display = ds.display;
+			// var info = document.getElementById('info');
+			// info.style.display = ds.display;
 
 		}
 

@@ -22,6 +22,10 @@ function returnRouter(io) {
           socket.broadcast.emit('play-music', data);
         });
 
+        socket.on('vol-change', function(data) {
+          socket.broadcast.emit('vol-change', data);
+        });
+
       socket.on('disconnect', function() {
           console.log('Got disconnect!');
           var i = allClients.indexOf(socket);
@@ -33,6 +37,10 @@ function returnRouter(io) {
     
     /* GET home page. */
     router.get('/', function(req, res, next) {
+          res.render('prestart', { title: 'Express' });
+    });
+
+    router.get('/play', function(req, res, next) {
           res.render('index', { title: 'Express' });
     });
 
